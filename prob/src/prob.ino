@@ -115,25 +115,26 @@ void transmissionFunc(void)
     uint8_t* pkt = packet.getMessage();
     uint8_t length = packet.getLength();
 
-    for(uint8_t i = 0; i < length; i++)
-    {
-        uint16_t temp = 0;
+    // for(uint8_t i = 0; i < length; i++)
+    // {
+    //     uint16_t temp = 0;
         
-        for(uint8_t j = 0; j < 8; j++)
-        {
-            uint16_t a = ((pkt[i] >> (7 - j)) & mask);
-            temp = temp << 2;
-            temp |=  ((a << 1) | a);
-        }
+    //     for(uint8_t j = 0; j < 8; j++)
+    //     {
+    //         uint16_t a = ((pkt[i] >> (7 - j)) & mask);
+    //         temp = temp << 2;
+    //         temp |=  ((a << 1) | a);
+    //     }
 
-        man[i] = clk ^ temp;
-    }
+    //     man[i] = clk ^ temp;
+    // }
 
     for(uint8_t i = 0; i < length; i++)
     {
       for(uint16_t mask = 0x8000; mask > 0x0000; mask >>= 1)
       {
-        if(mask == (mask & man[i]))
+        // if(mask == (mask & man[i]))
+        if(mask == (mask & pkt[i]))
         {
           sendOne();
         }
