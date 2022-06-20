@@ -1,4 +1,5 @@
 #include "message.h"
+#include "crc16.h"
 
 SYSTEM_THREAD(ENABLED);
 
@@ -82,14 +83,16 @@ void assemblyFunc(void)
     uint8_t* msg = message.getMessage();
     uint8_t length = message.getLength();
 
+    uint16_t crc = crc16(msg, length);
+
     uint8_t pkt[length + 7];
     pkt[0] = 0b01010101;                            // Preambule
     pkt[1] = 0b01111110;                            // Start
     pkt[2] = 0x0;                                   // Type + Flag
     pkt[3] = length;                                // Message length
     memcpy(&pkt[4], msg, length);  // Message
-    pkt[length + 4] = 0x00;                         // CRC16 MSB
-    pkt[length + 5] = 0x00;                         // CRC16 LSB
+    pkt[length + 4] = crc >> 8;                     // CRC16 MSB
+    pkt[length + 5] = crc;                          // CRC16 LSB
     pkt[length + 6] = 0b01111110;                   // End
 
     packet.setMessage(pkt, sizeof(pkt));
