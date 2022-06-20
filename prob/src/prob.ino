@@ -7,6 +7,7 @@ Message message;
 Message packet;
 
 const uint8_t txPin = D4;
+const uint8_t rxPin = D2;
 
 //Thread receptionThread("Reception", receptionFunc);
 //Thread disassemblyThread("Disassembly", disassemblyFunc);
@@ -72,7 +73,7 @@ void insertionFunc(void)
     uint8_t testMsg[5] = "test";
     message.setMessage(testMsg, sizeof(testMsg));
 
-    os_thread_yield();
+    delay(2000);
   }
 }
 
@@ -86,14 +87,14 @@ void assemblyFunc(void)
     uint16_t crc = crc16(msg, length);
 
     uint8_t pkt[length + 7];
-    pkt[0] = 0b01010101;                            // Preambule
+    pkt[0] = 0;                                     // Preambule
     pkt[1] = 0b01111110;                            // Start
     pkt[2] = 0x0;                                   // Type + Flag
     pkt[3] = length;                                // Message length
     memcpy(&pkt[4], msg, length);  // Message
     pkt[length + 4] = crc >> 8;                     // CRC16 MSB
     pkt[length + 5] = crc;                          // CRC16 LSB
-    pkt[length + 6] = 0b01111110;                   // End
+    pkt[length + 6] = 0;                            // End
 
     packet.setMessage(pkt, sizeof(pkt));
 
@@ -116,7 +117,7 @@ void transmissionFunc(void)
 
     for(uint8_t i = 0; i < length; i++)
     {
-        uint16_t temp = {0};
+        uint16_t temp = 0;
         
         for(uint8_t j = 0; j < 8; j++)
         {
@@ -151,17 +152,17 @@ void transmissionFunc(void)
 void sendZero()
 {
   delayMicroseconds(1000);
-  digitalWrite(txPin, HIGH);
+  digitalWrite(txPin, LOW);
 
   delayMicroseconds(1000);
-  digitalWrite(txPin, LOW);
+  digitalWrite(txPin, HIGH);
 }
 
 void sendOne()
 {
   delayMicroseconds(1000);
-  digitalWrite(txPin, LOW);
+  digitalWrite(txPin, HIGH);
 
   delayMicroseconds(1000);
-  digitalWrite(txPin, HIGH);
+  digitalWrite(txPin, LOW);
 }
