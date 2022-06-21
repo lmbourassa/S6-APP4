@@ -9,17 +9,30 @@ Message packet;
 const uint8_t txPin = D4;
 const uint8_t rxPin = D2;
 
-//Thread receptionThread("Reception", receptionFunc);
+enum rxState
+{
+  NEW,
+  CLOCK,
+  ZERO,
+  ONE
+}rxState;
+
+system_tick_t chronoStart, chronoStop, chrono, period, error;
+uint8_t bitCount = 0;
+
+// Thread receptionThread("Reception", receptionFunc);
 //Thread disassemblyThread("Disassembly", disassemblyFunc);
 //Thread extractionThread("Extraction", extractionFunc);
 Thread insertionThread("Insertion", insertionFunc);
 Thread assemblyThread("Assembly", assemblyFunc);
-Thread TransmissionThread("Transmission", transmissionFunc);
+Thread TransmissionThread("Transmission", transmissionFunc, OS_THREAD_PRIORITY_CRITICAL);
 
 void setup()
 {
   Serial.begin(9600);
   waitFor(Serial.isConnected, 30000);
+
+  attachInterrupt(rxPin, receptionFunc, FALLING, 0);
 }
 
 void loop()
@@ -29,14 +42,100 @@ void loop()
 
 void receptionFunc(void)
 {
-  while(true)
+  switch (rxState)
   {
-    WITH_LOCK(Serial)
+    case CLOCK:
     {
-      Serial.println("Reception");
+      chronoStop = micros();
+
+      period = chronoStop - chronoStart;
+      chronoStart = chronoStop;
+      error = period/4;
+
+      bitCount++;
+
+      if(7 == bitCount)
+      {
+        bitCount = 0;
+        rxState = ZERO;
+
+        detachInterrupt(rxPin);
+        attachInterrupt(rxPin, receptionFunc, CHANGE, 0);
+      }
+
+      break;
     }
 
-    os_thread_yield();
+    case ZERO:
+    {
+      chronoStop = micros();
+      chrono = chronoStop - chronoStart;
+      chronoStart = chronoStop;
+      bitCount++;
+
+      if(chronoStop > (period + error))
+      {
+        rxState = ONE;
+
+        Serial.print("1");
+      }
+
+      else
+      {
+        rxState = ZERO;
+        Serial.print("0");
+      }
+
+      break;
+    }
+
+    case ONE:
+    {
+      chronoStop = micros();
+      chrono = chronoStop - chronoStart;
+      chronoStart = chronoStop;
+      bitCount++;
+
+      if(chronoStop > (period + error))
+      {
+        rxState = ZERO;
+
+        Serial.print("0");
+      }
+
+      else
+      {
+        rxState = ONE;
+        Serial.print("1");
+      }
+
+      break;
+    }
+  
+    default:
+    {
+      chronoStart = micros();
+
+      rxState = CLOCK;
+
+      detachInterrupt(rxPin);
+      attachInterrupt(rxPin, receptionFunc, FALLING, 0);
+      
+      break;
+    }
+  }
+
+  if(bitCount >= 88)
+  {
+    rxState = NEW;
+
+    detachInterrupt(rxPin);
+    attachInterrupt(rxPin, receptionFunc, FALLING, 0);
+
+    bitCount = 0;
+
+    Serial.println();
+    Serial.printlnf("period: %lu us + %lu us", period, error);
   }
 }
 
@@ -94,7 +193,7 @@ void assemblyFunc(void)
     memcpy(&pkt[4], msg, length);  // Message
     pkt[length + 4] = crc >> 8;                     // CRC16 MSB
     pkt[length + 5] = crc;                          // CRC16 LSB
-    pkt[length + 6] = 0;                            // End
+    pkt[length + 6] = 0b01111110;                   // End
 
     packet.setMessage(pkt, sizeof(pkt));
 
@@ -153,17 +252,17 @@ void transmissionFunc(void)
 void sendZero()
 {
   delayMicroseconds(1000);
-  digitalWrite(txPin, LOW);
+  digitalWrite(txPin, HIGH);
 
   delayMicroseconds(1000);
-  digitalWrite(txPin, HIGH);
+  digitalWrite(txPin, LOW);
 }
 
 void sendOne()
 {
   delayMicroseconds(1000);
-  digitalWrite(txPin, HIGH);
+  digitalWrite(txPin, LOW);
 
   delayMicroseconds(1000);
-  digitalWrite(txPin, LOW);
+  digitalWrite(txPin, HIGH);
 }
