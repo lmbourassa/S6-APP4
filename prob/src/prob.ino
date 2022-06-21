@@ -20,6 +20,8 @@ enum rxState
 system_tick_t chronoStart, chronoStop, chrono, period, error;
 uint8_t bitCount = 0;
 
+Timer timer(10, finishReception);
+
 // Thread receptionThread("Reception", receptionFunc);
 //Thread disassemblyThread("Disassembly", disassemblyFunc);
 //Thread extractionThread("Extraction", extractionFunc);
@@ -32,12 +34,28 @@ void setup()
   Serial.begin(9600);
   waitFor(Serial.isConnected, 30000);
 
+  rxState = NEW;
   attachInterrupt(rxPin, receptionFunc, FALLING, 0);
 }
 
 void loop()
 {
   delay(100);
+}
+
+void finishReception(void)
+{
+  rxState = NEW;
+
+  detachInterrupt(rxPin);
+  attachInterrupt(rxPin, receptionFunc, FALLING, 0);
+
+  timer.stopFromISR();
+
+  bitCount = 0;
+
+  Serial.println();
+  Serial.printlnf("period: %lu us + %lu us", period, error);
 }
 
 void receptionFunc(void)
@@ -47,21 +65,14 @@ void receptionFunc(void)
     case CLOCK:
     {
       chronoStop = micros();
+      timer.resetFromISR();
 
       period = chronoStop - chronoStart;
-      chronoStart = chronoStop;
       error = period/4;
 
-      bitCount++;
+      chronoStart = chronoStop;
 
-      if(7 == bitCount)
-      {
-        bitCount = 0;
-        rxState = ZERO;
-
-        detachInterrupt(rxPin);
-        attachInterrupt(rxPin, receptionFunc, CHANGE, 0);
-      }
+      rxState = ZERO;
 
       break;
     }
@@ -69,22 +80,26 @@ void receptionFunc(void)
     case ZERO:
     {
       chronoStop = micros();
+
+      timer.resetFromISR();
+
       chrono = chronoStop - chronoStart;
       chronoStart = chronoStop;
       bitCount++;
 
-      if(chronoStop > (period + error))
+      if(chrono > (period + error))
       {
         rxState = ONE;
 
+        detachInterrupt(rxPin);
+        attachInterrupt(rxPin, receptionFunc, RISING, 0);
+
         Serial.print("1");
+
+        break;
       }
 
-      else
-      {
-        rxState = ZERO;
-        Serial.print("0");
-      }
+      Serial.print("0");
 
       break;
     }
@@ -92,22 +107,26 @@ void receptionFunc(void)
     case ONE:
     {
       chronoStop = micros();
+
+      timer.resetFromISR();
+
       chrono = chronoStop - chronoStart;
       chronoStart = chronoStop;
       bitCount++;
 
-      if(chronoStop > (period + error))
+      if(chrono > (period + error))
       {
         rxState = ZERO;
 
+        detachInterrupt(rxPin);
+        attachInterrupt(rxPin, receptionFunc, FALLING, 0);
+
         Serial.print("0");
+
+        break;
       }
 
-      else
-      {
-        rxState = ONE;
-        Serial.print("1");
-      }
+      Serial.print("1");
 
       break;
     }
@@ -118,24 +137,10 @@ void receptionFunc(void)
 
       rxState = CLOCK;
 
-      detachInterrupt(rxPin);
-      attachInterrupt(rxPin, receptionFunc, FALLING, 0);
+      timer.startFromISR();
       
       break;
     }
-  }
-
-  if(bitCount >= 88)
-  {
-    rxState = NEW;
-
-    detachInterrupt(rxPin);
-    attachInterrupt(rxPin, receptionFunc, FALLING, 0);
-
-    bitCount = 0;
-
-    Serial.println();
-    Serial.printlnf("period: %lu us + %lu us", period, error);
   }
 }
 
