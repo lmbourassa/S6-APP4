@@ -9,11 +9,9 @@ Message::Message()
 
 void Message::setMessage(uint8_t* msg, uint8_t length)
 {
-    memcpy(data, msg, length);
+    memcpy(&(data[this->length]), msg, length);
 
-    this->length = length;
-
-    hasDataLock.unlock();
+    this->length += length;
 }
 
 uint8_t* Message::getMessage()
@@ -26,4 +24,14 @@ uint8_t* Message::getMessage()
 uint8_t Message::getLength()
 {
     return length;
+}
+
+void Message::sendMessage()
+{
+    hasDataLock.unlock();
+}
+
+void Message::resetLength()
+{
+    length = 0;
 }

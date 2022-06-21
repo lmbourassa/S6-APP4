@@ -6,7 +6,7 @@
 class Message
 {
 private:
-    uint8_t data[80];
+    uint8_t data[1024];
     uint8_t length;
     Mutex hasDataLock; // Locked when has no data, unlocked when has data
 
@@ -15,6 +15,8 @@ public:
     void setMessage(uint8_t* msg, uint8_t length);
     uint8_t* getMessage();
     uint8_t getLength();
+    void sendMessage();
+    void resetLength();
 };
 
 #endif

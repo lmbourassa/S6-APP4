@@ -5,6 +5,7 @@ SYSTEM_THREAD(ENABLED);
 
 Message message;
 Message packet;
+Message reception;
 
 const uint8_t txPin = D4;
 const uint8_t rxPin = D2;
@@ -17,13 +18,13 @@ enum rxState
   ONE
 }rxState;
 
-system_tick_t chronoStart, chronoStop, chrono, period, error;
+system_tick_t chronoStart, chronoStop, chrono, period;
 uint8_t bitCount = 0;
 
 Timer timer(10, finishReception);
 
 // Thread receptionThread("Reception", receptionFunc);
-//Thread disassemblyThread("Disassembly", disassemblyFunc);
+Thread disassemblyThread("Disassembly", disassemblyFunc);
 //Thread extractionThread("Extraction", extractionFunc);
 Thread insertionThread("Insertion", insertionFunc);
 Thread assemblyThread("Assembly", assemblyFunc);
@@ -47,7 +48,6 @@ void finishReception(void)
 {
   rxState = NEW;
 
-  detachInterrupt(rxPin);
   attachInterrupt(rxPin, receptionFunc, FALLING, 0);
 
   timer.stopFromISR();
@@ -55,7 +55,9 @@ void finishReception(void)
   bitCount = 0;
 
   Serial.println();
-  Serial.printlnf("period: %lu us + %lu us", period, error);
+  Serial.printlnf("period: %lu us", period);
+
+  reception.sendMessage();
 }
 
 void receptionFunc(void)
@@ -68,7 +70,7 @@ void receptionFunc(void)
       timer.resetFromISR();
 
       period = chronoStop - chronoStart;
-      error = period/4;
+      period += period/4; // ajusting for error
 
       chronoStart = chronoStop;
 
@@ -87,19 +89,12 @@ void receptionFunc(void)
       chronoStart = chronoStop;
       bitCount++;
 
-      if(chrono > (period + error))
+      if(chrono > period)
       {
         rxState = ONE;
 
-        detachInterrupt(rxPin);
         attachInterrupt(rxPin, receptionFunc, RISING, 0);
-
-        Serial.print("1");
-
-        break;
       }
-
-      Serial.print("0");
 
       break;
     }
@@ -114,19 +109,12 @@ void receptionFunc(void)
       chronoStart = chronoStop;
       bitCount++;
 
-      if(chrono > (period + error))
+      if(chrono > period)
       {
         rxState = ZERO;
 
-        detachInterrupt(rxPin);
         attachInterrupt(rxPin, receptionFunc, FALLING, 0);
-
-        Serial.print("0");
-
-        break;
       }
-
-      Serial.print("1");
 
       break;
     }
@@ -137,22 +125,38 @@ void receptionFunc(void)
 
       rxState = CLOCK;
 
+      reception.resetLength();
+
       timer.startFromISR();
       
       break;
     }
   }
+
+  reception.setMessage((uint8_t*)&rxState, 1);
 }
 
 void disassemblyFunc(void)
 {
   while(true)
   {
-    WITH_LOCK(Serial)
+    uint8_t* pkt = reception.getMessage();
+    uint8_t length = reception.getLength();
+
+    for(uint8_t i = 0; i < length; i++)
     {
-      Serial.println("Disassembly");
+      if(ONE == pkt[i])
+      {
+        Serial.print("1");
+      }
+
+      else
+      {
+        Serial.print("0");
+      }
     }
 
+    Serial.println();
     os_thread_yield();
   }
 }
@@ -175,7 +179,9 @@ void insertionFunc(void)
   while(true)
   {
     uint8_t testMsg[5] = "test";
+    message.resetLength();
     message.setMessage(testMsg, sizeof(testMsg));
+    message.sendMessage();
 
     delay(2000);
   }
@@ -200,7 +206,9 @@ void assemblyFunc(void)
     pkt[length + 5] = crc;                          // CRC16 LSB
     pkt[length + 6] = 0b01111110;                   // End
 
+    packet.resetLength();
     packet.setMessage(pkt, sizeof(pkt));
+    packet.sendMessage();
 
     os_thread_yield();
   }
