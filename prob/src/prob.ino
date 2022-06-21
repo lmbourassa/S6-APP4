@@ -208,10 +208,6 @@ void assemblyFunc(void)
 
 void transmissionFunc(void)
 {
-  uint16_t clk = {0x5555};
-  uint16_t man[80] = {0};
-  uint8_t mask = 0x1;
-
   pinMode(txPin, OUTPUT);
 
   while(true)
@@ -219,37 +215,27 @@ void transmissionFunc(void)
     uint8_t* pkt = packet.getMessage();
     uint8_t length = packet.getLength();
 
-    // for(uint8_t i = 0; i < length; i++)
-    // {
-    //     uint16_t temp = 0;
-        
-    //     for(uint8_t j = 0; j < 8; j++)
-    //     {
-    //         uint16_t a = ((pkt[i] >> (7 - j)) & mask);
-    //         temp = temp << 2;
-    //         temp |=  ((a << 1) | a);
-    //     }
-
-    //     man[i] = clk ^ temp;
-    // }
-
     for(uint8_t i = 0; i < length; i++)
     {
-      for(uint16_t mask = 0x8000; mask > 0x0000; mask >>= 1)
+      // Serial.printlnf("%02X\n", pkt[i]);
+
+      for(uint8_t mask = 0x80; mask > 0x00; mask >>= 1)
       {
-        // if(mask == (mask & man[i]))
         if(mask == (mask & pkt[i]))
         {
+          // Serial.print("1");
           sendOne();
         }
 
         else
         {
+          // Serial.print("0");
           sendZero();
         }
       }
     }
 
+    // Serial.println();
     os_thread_yield();
   }
 }
