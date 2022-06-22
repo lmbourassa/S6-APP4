@@ -6,6 +6,7 @@ SYSTEM_THREAD(ENABLED);
 Message message;
 Message packet;
 Message reception;
+Message dissassembled;
 
 const uint8_t txPin = D4;
 const uint8_t rxPin = D2;
@@ -18,14 +19,13 @@ enum rxState
 }rxState;
 
 system_tick_t chronoStart, period;
-uint8_t bitCount = 0;
 bool bitValue = 0;
 
 Timer timer(10, finishReception);
 
 // Thread receptionThread("Reception", receptionFunc);
 Thread disassemblyThread("Disassembly", disassemblyFunc);
-//Thread extractionThread("Extraction", extractionFunc);
+Thread extractionThread("Extraction", extractionFunc);
 Thread insertionThread("Insertion", insertionFunc);
 Thread assemblyThread("Assembly", assemblyFunc);
 Thread TransmissionThread("Transmission", transmissionFunc, OS_THREAD_PRIORITY_CRITICAL);
@@ -52,11 +52,6 @@ void finishReception(void)
   bitValue = 0;
 
   attachInterrupt(rxPin, receptionFunc, FALLING, 0);
-
-  bitCount = 0;
-
-  Serial.println();
-  Serial.printlnf("period: %lu us", period);
 
   reception.sendMessage();
 }
@@ -127,20 +122,32 @@ void disassemblyFunc(void)
     uint8_t* pkt = reception.getMessage();
     uint8_t length = reception.getLength();
 
+    dissassembled.resetLength();
+
+    uint8_t temp = 0x00;
+    uint8_t mask = 0x80;
+
+
     for(uint8_t i = 0; i < length; i++)
     {
       if(1 == pkt[i])
       {
-        Serial.print("1");
+        temp |= mask;
       }
 
-      else
+      mask = mask >> 1;
+
+      if(0x00 == mask)
       {
-        Serial.print("0");
+        mask = 0x80;
+        dissassembled.setMessage(&temp, 1);
+        temp = 0x00;
       }
+
     }
 
-    Serial.println();
+    dissassembled.sendMessage();
+
     os_thread_yield();
   }
 }
@@ -149,9 +156,17 @@ void extractionFunc(void)
 {
   while(true)
   {
+    uint8_t* msg = dissassembled.getMessage();
+    uint8_t length = dissassembled.getLength();
+
     WITH_LOCK(Serial)
     {
-      Serial.println("Extraction");
+      for(uint8_t i = 0; i < length; i++)
+      {
+        Serial.printf("%02X ", msg[i]);
+      }
+
+      Serial.println();
     }
 
     os_thread_yield();
