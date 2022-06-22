@@ -18,7 +18,7 @@ enum rxState
   ONE
 }rxState;
 
-system_tick_t chronoStart, chronoStop, chrono, period;
+system_tick_t chronoStart, period;
 uint8_t bitCount = 0;
 
 Timer timer(10, finishReception);
@@ -46,11 +46,11 @@ void loop()
 
 void finishReception(void)
 {
+  timer.stopFromISR();
+  
   rxState = NEW;
 
   attachInterrupt(rxPin, receptionFunc, FALLING, 0);
-
-  timer.stopFromISR();
 
   bitCount = 0;
 
@@ -62,17 +62,19 @@ void finishReception(void)
 
 void receptionFunc(void)
 {
+  system_tick_t chronoTemp = micros();
+  system_tick_t chrono;
+
+  timer.resetFromISR();
+
   switch (rxState)
   {
     case CLOCK:
     {
-      chronoStop = micros();
-      timer.resetFromISR();
-
-      period = chronoStop - chronoStart;
+      period = chronoTemp - chronoStart;
       period += period/4; // ajusting for error
 
-      chronoStart = chronoStop;
+      chronoStart = chronoTemp;
 
       rxState = ZERO;
 
@@ -81,12 +83,8 @@ void receptionFunc(void)
 
     case ZERO:
     {
-      chronoStop = micros();
-
-      timer.resetFromISR();
-
-      chrono = chronoStop - chronoStart;
-      chronoStart = chronoStop;
+      chrono = chronoTemp - chronoStart;
+      chronoStart = chronoTemp;
       bitCount++;
 
       if(chrono > period)
@@ -101,12 +99,8 @@ void receptionFunc(void)
 
     case ONE:
     {
-      chronoStop = micros();
-
-      timer.resetFromISR();
-
-      chrono = chronoStop - chronoStart;
-      chronoStart = chronoStop;
+      chrono = chronoTemp - chronoStart;
+      chronoStart = chronoTemp;
       bitCount++;
 
       if(chrono > period)
@@ -121,7 +115,7 @@ void receptionFunc(void)
   
     default:
     {
-      chronoStart = micros();
+      chronoStart = chronoTemp;
 
       rxState = CLOCK;
 
