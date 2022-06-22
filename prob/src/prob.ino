@@ -10,6 +10,8 @@ Message dissassembled;
 
 const uint8_t txPin = D4;
 const uint8_t rxPin = D2;
+const uint8_t scramblePin = A4;
+const uint8_t msgPin = A3;
 
 enum rxState
 {
@@ -23,7 +25,6 @@ bool bitValue = 0;
 
 Timer timer(10, finishReception);
 
-// Thread receptionThread("Reception", receptionFunc);
 Thread disassemblyThread("Disassembly", disassemblyFunc);
 Thread extractionThread("Extraction", extractionFunc);
 Thread insertionThread("Insertion", insertionFunc);
@@ -157,7 +158,6 @@ void extractionFunc(void)
   while(true)
   {
     uint8_t* msg = dissassembled.getMessage();
-    uint8_t length = dissassembled.getLength();
 
     uint8_t actualLength = msg[3];
     uint8_t actualMessage[actualLength];
@@ -186,11 +186,24 @@ void extractionFunc(void)
 
 void insertionFunc(void)
 {
+  pinMode(msgPin, INPUT_PULLUP);
+
   while(true)
   {
-    uint8_t testMsg[5] = "test";
-    message.resetLength();
-    message.setMessage(testMsg, sizeof(testMsg));
+    if(digitalRead(msgPin))
+    {
+      uint8_t testMsg[22] = "Congolexicomatisation";
+      message.resetLength();
+      message.setMessage(testMsg, sizeof(testMsg));
+    }
+
+    else
+    {
+      uint8_t testMsg[19] = "Bonjour Etienne :)";
+      message.resetLength();
+      message.setMessage(testMsg, sizeof(testMsg));
+    }
+
     message.sendMessage();
 
     delay(2000);
@@ -199,6 +212,8 @@ void insertionFunc(void)
 
 void assemblyFunc(void)
 {
+  pinMode(scramblePin, INPUT_PULLUP);
+
   while(true)
   {
     uint8_t* msg = message.getMessage();
@@ -215,6 +230,11 @@ void assemblyFunc(void)
     pkt[length + 4] = crc >> 8;                     // CRC16 MSB
     pkt[length + 5] = crc;                          // CRC16 LSB
     pkt[length + 6] = 0b01111110;                   // End
+
+    if(digitalRead(scramblePin))
+    {
+      pkt[4] = 0xFF;
+    }
 
     packet.resetLength();
     packet.setMessage(pkt, sizeof(pkt));
@@ -235,25 +255,20 @@ void transmissionFunc(void)
 
     for(uint8_t i = 0; i < length; i++)
     {
-      // Serial.printlnf("%02X\n", pkt[i]);
-
       for(uint8_t mask = 0x80; mask > 0x00; mask >>= 1)
       {
         if(mask == (mask & pkt[i]))
         {
-          // Serial.print("1");
           sendOne();
         }
 
         else
         {
-          // Serial.print("0");
           sendZero();
         }
       }
     }
 
-    // Serial.println();
     os_thread_yield();
   }
 }
