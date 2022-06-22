@@ -14,12 +14,12 @@ enum rxState
 {
   NEW,
   CLOCK,
-  ZERO,
-  ONE
+  RECEIVING,
 }rxState;
 
 system_tick_t chronoStart, period;
 uint8_t bitCount = 0;
+bool bitValue = 0;
 
 Timer timer(10, finishReception);
 
@@ -49,6 +49,7 @@ void finishReception(void)
   timer.stopFromISR();
   
   rxState = NEW;
+  bitValue = 0;
 
   attachInterrupt(rxPin, receptionFunc, FALLING, 0);
 
@@ -63,7 +64,6 @@ void finishReception(void)
 void receptionFunc(void)
 {
   system_tick_t chronoTemp = micros();
-  system_tick_t chrono;
 
   timer.resetFromISR();
 
@@ -72,43 +72,33 @@ void receptionFunc(void)
     case CLOCK:
     {
       period = chronoTemp - chronoStart;
-      period += period/4; // ajusting for error
+      period -= period/4; // ajusting for error
 
       chronoStart = chronoTemp;
 
-      rxState = ZERO;
+      rxState = RECEIVING;
+
+      attachInterrupt(rxPin, receptionFunc, CHANGE, 0);
+
+      reception.setMessage((uint8_t*)&bitValue, 1);
 
       break;
     }
 
-    case ZERO:
+    case RECEIVING:
     {
-      chrono = chronoTemp - chronoStart;
-      chronoStart = chronoTemp;
-      bitCount++;
-
-      if(chrono > period)
+      if((chronoTemp - chronoStart) < period)
       {
-        rxState = ONE;
+        bitValue = !bitValue;
 
-        attachInterrupt(rxPin, receptionFunc, RISING, 0);
+        break;
       }
 
-      break;
-    }
+      bitValue = !bitValue;
 
-    case ONE:
-    {
-      chrono = chronoTemp - chronoStart;
       chronoStart = chronoTemp;
-      bitCount++;
 
-      if(chrono > period)
-      {
-        rxState = ZERO;
-
-        attachInterrupt(rxPin, receptionFunc, FALLING, 0);
-      }
+      reception.setMessage((uint8_t*)&bitValue, 1);
 
       break;
     }
@@ -122,12 +112,12 @@ void receptionFunc(void)
       reception.resetLength();
 
       timer.startFromISR();
+
+      reception.setMessage((uint8_t*)&bitValue, 1);
       
       break;
     }
   }
-
-  reception.setMessage((uint8_t*)&rxState, 1);
 }
 
 void disassemblyFunc(void)
@@ -139,7 +129,7 @@ void disassemblyFunc(void)
 
     for(uint8_t i = 0; i < length; i++)
     {
-      if(ONE == pkt[i])
+      if(1 == pkt[i])
       {
         Serial.print("1");
       }
