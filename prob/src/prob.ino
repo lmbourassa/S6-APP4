@@ -159,14 +159,25 @@ void extractionFunc(void)
     uint8_t* msg = dissassembled.getMessage();
     uint8_t length = dissassembled.getLength();
 
-    WITH_LOCK(Serial)
-    {
-      for(uint8_t i = 0; i < length; i++)
-      {
-        Serial.printf("%02X ", msg[i]);
-      }
+    uint8_t actualLength = msg[3];
+    uint8_t actualMessage[actualLength];
+    uint8_t crcParts[2];
 
-      Serial.println();
+    memcpy(actualMessage, &(msg[4]), actualLength);
+    memcpy(crcParts, &(msg[actualLength + 4]), 2);
+
+    uint16_t rxcrc = (((uint16_t)crcParts[0]) << 8) | crcParts[1];
+
+    uint16_t crc = crc16(actualMessage, actualLength);
+
+    if(crc == rxcrc)
+    {
+      Serial.printlnf("Received: %s", actualMessage);
+    }
+
+    else
+    {
+      Serial.println("CRC error");
     }
 
     os_thread_yield();
