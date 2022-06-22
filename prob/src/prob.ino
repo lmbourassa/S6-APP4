@@ -1,6 +1,9 @@
 #include "message.h"
 #include "crc16.h"
 
+#define MANCHESTER_BIT_PERIOD_US 400
+#define HALF_PERIOD  MANCHESTER_BIT_PERIOD_US/2
+
 SYSTEM_THREAD(ENABLED);
 
 Message message;
@@ -275,18 +278,18 @@ void transmissionFunc(void)
 
 void sendZero()
 {
-  delayMicroseconds(1000);
+  delayMicroseconds(HALF_PERIOD);
   digitalWrite(txPin, HIGH);
 
-  delayMicroseconds(1000);
+  delayMicroseconds(HALF_PERIOD);
   digitalWrite(txPin, LOW);
 }
 
 void sendOne()
 {
-  delayMicroseconds(1000);
+  delayMicroseconds(HALF_PERIOD);
   digitalWrite(txPin, LOW);
 
-  delayMicroseconds(1000);
+  delayMicroseconds(HALF_PERIOD);
   digitalWrite(txPin, HIGH);
 }
