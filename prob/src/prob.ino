@@ -1,7 +1,7 @@
 #include "message.h"
 #include "crc16.h"
 
-#define MANCHESTER_BIT_PERIOD_US 400
+#define MANCHESTER_BIT_PERIOD_US 300
 #define HALF_PERIOD  MANCHESTER_BIT_PERIOD_US/2
 
 SYSTEM_THREAD(ENABLED);
@@ -215,7 +215,7 @@ void insertionFunc(void)
 
 void assemblyFunc(void)
 {
-  pinMode(scramblePin, INPUT_PULLUP);
+  // pinMode(scramblePin, INPUT_PULLUP);
 
   while(true)
   {
@@ -234,10 +234,10 @@ void assemblyFunc(void)
     pkt[length + 5] = crc;                          // CRC16 LSB
     pkt[length + 6] = 0b01111110;                   // End
 
-    if(digitalRead(scramblePin))
-    {
-      pkt[4] = 0xFF;
-    }
+    // if(digitalRead(scramblePin))
+    // {
+    //   pkt[4] = 0xFF;
+    // }
 
     packet.resetLength();
     packet.setMessage(pkt, sizeof(pkt));
